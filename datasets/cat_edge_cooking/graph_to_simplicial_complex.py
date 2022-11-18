@@ -54,7 +54,7 @@ def get_simplicial_complex(subgraph:dgl.DGLGraph, graph:dgl.DGLGraph, nx_graph:n
     return simplex_labels
 
 @torch.no_grad()
-def get_embeddings(simplex_labels, dim=4):
+def get_embeddings(simplex_labels, to_remove, dim=4):
     '''
     This function is used to obtain initial face embeddings.
     Parameters:
@@ -62,13 +62,28 @@ def get_embeddings(simplex_labels, dim=4):
     Returns:
     embeddings : List of embedding tensor corresponding to each dimension
     '''
-    simplicial_complex = HodgeLaplacians(simplex_labels.keys())
+    simplicial_complex = HodgeLaplacians(simplex_labels.keys(), maxdimension=dim)
     embeddings = []
+    laplacians = []
+    boundaries = []
+    idx = 0
     for i in range(dim):
         H = []
-        for face in simplicial_complex.n_faces(i):
+        for z, face in enumerate(simplicial_complex.n_faces(i)):
             face = frozenset(face)
-            H.append(simplex_labels[face])
-        embeddings.append(torch.stack(H))
-    return embeddings
+            H.append(simplex_labels[face]) if face != to_remove else H.append(torch.zeros((20,)))
+            if face == to_remove:
+                idx = z
+        try:
+            embeddings.append(torch.stack(H).float())
+        except:
+            embeddings.append(None)
+        try:
+            laplacians.append(torch.tensor(simplicial_complex.getHodgeLaplacian(i).todense()).float())
+            boundaries.append(torch.tensor(simplicial_complex.getBoundaryOperator(i).todense()).float())
+        except:
+            laplacians.append(None)
+            boundaries.append(None)
+    return embeddings, laplacians, boundaries, idx
+
 
