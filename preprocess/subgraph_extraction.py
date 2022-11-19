@@ -1,14 +1,10 @@
+import os
 import random
 
 import dgl
 import networkx as nx
 import numpy as np
 import scipy.sparse as ssp
-import torch
-from tqdm import tqdm
-import os
-
-dirname = os.path.dirname(__file__)
 
 def extract_subgraph(ind, graph, h=1, enclosing_sub_graph=False, max_nodes_per_hop=None, max_node_label_value=None):
     '''

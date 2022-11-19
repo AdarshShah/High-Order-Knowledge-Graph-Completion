@@ -9,44 +9,44 @@ dirname = os.path.dirname(__file__)
 device = 'cuda:0'
 
 @lru_cache()
-def _get_simplices(hyperedges_path = 'hyperedges.txt', labels_path = 'hyperedge-labels.txt'):
+def _get_simplices(dataset, num_classes):
     '''
     Utility function to extract simplices and their labels
     '''
     labels = []
-    with open(os.path.join(dirname,labels_path),'r') as label_file:
+    with open(os.path.join(dirname,f'../datasets/{dataset}/hyperedge-labels.txt'),'r') as label_file:
         for line in label_file:
-            labels.append(int(line)-1)
+            labels.append(min(int(line)-1, num_classes-1))
     simplices = []
-    with open(os.path.join(dirname, hyperedges_path),'r') as hyperedges_file:
+    with open(os.path.join(dirname, f'../datasets/{dataset}/hyperedges.txt'),'r') as hyperedges_file:
         for line in hyperedges_file:
             simplices.append(set([ int(node)-1 for node in line.split() ]))
     return simplices, labels
 
 @torch.no_grad()
-def get_simplicial_complex(subgraph:dgl.DGLGraph, graph:dgl.DGLGraph, nx_graph:nx.Graph):
+def get_simplicial_complex(subgraph:dgl.DGLGraph, graph:dgl.DGLGraph, nx_graph:nx.Graph, dataset, num_classes):
     '''
     The function generate simplicial complex from subgraph
     Returns:
     Simplicial Complex : List of Set
     Labels : List of Int
     '''
-    simplices, labels = _get_simplices()
+    simplices, labels = _get_simplices(dataset, num_classes)
     edges = torch.stack(graph.find_edges(subgraph.edata['_ID'])).permute(1,0).numpy()
     nodes = set(subgraph.ndata['_ID'].numpy())
     simplex_labels = {}
     visited = set()
     for u,v in edges:
         for simplex_index in nx_graph[u][v]['hyperedge_index']:
+            simplex = frozenset(set.intersection(nodes, simplices[simplex_index]))
             if simplex_index not in visited:
                 visited.add(simplex_index)
-                simplex = frozenset(set.intersection(nodes, simplices[simplex_index]))
-                simplex_labels[simplex] = torch.zeros(20)
+                simplex_labels[simplex] = torch.zeros(num_classes)
                 hl = HodgeLaplacians([simplex])
                 for face in hl.face_set:
                     face = frozenset(face)
                     if face not in simplex_labels.keys():
-                        simplex_labels[face] = torch.zeros(20)
+                        simplex_labels[face] = torch.zeros(num_classes)            
             hl = HodgeLaplacians([simplex])
             for face in hl.face_set:
                 face = frozenset(face)
@@ -55,7 +55,7 @@ def get_simplicial_complex(subgraph:dgl.DGLGraph, graph:dgl.DGLGraph, nx_graph:n
     return simplex_labels
 
 @torch.no_grad()
-def get_embeddings(simplex_labels, to_remove, dim=4):
+def get_embeddings(simplex_labels, to_remove, num_classes, dim=4):
     '''
     This function is used to obtain initial face embeddings.
     Parameters:
@@ -72,7 +72,7 @@ def get_embeddings(simplex_labels, to_remove, dim=4):
         H = []
         for z, face in enumerate(simplicial_complex.n_faces(i)):
             face = frozenset(face)
-            H.append(simplex_labels[face]) if face != to_remove else H.append(torch.zeros((20,)))
+            H.append(simplex_labels[face]) if face != to_remove else H.append(torch.zeros((num_classes,)))
             if face == to_remove:
                 idx = z
         try:
@@ -86,5 +86,3 @@ def get_embeddings(simplex_labels, to_remove, dim=4):
             laplacians.append(None)
             boundaries.append(None)
     return embeddings, laplacians, boundaries, idx, simplex_labels[to_remove].to(device)
-
-

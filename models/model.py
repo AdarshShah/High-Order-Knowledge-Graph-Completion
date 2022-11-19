@@ -3,15 +3,15 @@ from torch import nn
 from torch.nn import functional as F
 import torch
 
-class CookingModel(nn.Module):
+class SimplicialModel1(nn.Module):
 
-    def __init__(self, dim=4, device='cuda:0') -> None:
-        super(CookingModel, self).__init__()
+    def __init__(self, classes, dim=4, device='cuda:0') -> None:
+        super(SimplicialModel1, self).__init__()
         self.dim = 4
-        self.conv1 = SimplicialConvolution(20, 20)
-        self.attn1 = SimplicialAttentionLayer(20)
-        self.conv2 = SimplicialConvolution(20, 20)
-        self.lin = nn.Linear(20, 20)
+        self.conv1 = SimplicialConvolution(classes, classes)
+        self.attn1 = SimplicialAttentionLayer(classes)
+        self.conv2 = SimplicialConvolution(classes, classes)
+        self.lin = nn.Linear(classes, classes)
         self.device = device
     
     def forward(self, embeddings, laplacians, boundaries, order, idx):
