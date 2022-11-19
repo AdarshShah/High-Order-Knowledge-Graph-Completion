@@ -30,7 +30,7 @@ class SimplicialConvolution(nn.Module):
 
 #Tested
 #Describe this in overleaf later
-#Can A be Laplacian ?
+#Can A be Laplacian ? Yes
 class SimplicialAttentionLayer(nn.Module):
 
     def __init__(self, in_relations) -> None:

@@ -6,6 +6,7 @@ import os
 from hodgelaplacians import HodgeLaplacians
 
 dirname = os.path.dirname(__file__)
+device = 'cuda:0'
 
 @lru_cache()
 def _get_simplices(hyperedges_path = 'hyperedges.txt', labels_path = 'hyperedge-labels.txt'):
@@ -75,15 +76,15 @@ def get_embeddings(simplex_labels, to_remove, dim=4):
             if face == to_remove:
                 idx = z
         try:
-            embeddings.append(torch.stack(H).float())
+            embeddings.append(torch.stack(H).float().to(device))
         except:
             embeddings.append(None)
         try:
-            laplacians.append(torch.tensor(simplicial_complex.getHodgeLaplacian(i).todense()).float())
-            boundaries.append(torch.tensor(simplicial_complex.getBoundaryOperator(i).todense()).float())
+            laplacians.append(torch.tensor(simplicial_complex.getHodgeLaplacian(i).todense()).float().to(device))
+            boundaries.append(torch.tensor(simplicial_complex.getBoundaryOperator(i).todense()).float().to(device))
         except:
             laplacians.append(None)
             boundaries.append(None)
-    return embeddings, laplacians, boundaries, idx
+    return embeddings, laplacians, boundaries, idx, simplex_labels[to_remove].to(device)
 
 
