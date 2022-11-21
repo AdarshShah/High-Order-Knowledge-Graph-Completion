@@ -4,6 +4,7 @@ from functools import lru_cache
 import torch
 import os
 from hodgelaplacians import HodgeLaplacians
+import numpy as np
 
 dirname = os.path.dirname(__file__)
 device = 'cuda:0'
@@ -22,6 +23,22 @@ def _get_simplices(dataset, num_classes):
         for line in hyperedges_file:
             simplices.append(set([ int(node)-1 for node in line.split() ]))
     return simplices, labels
+
+@lru_cache()
+@torch.no_grad()
+def random_sample(dataset, num_classes, max_dim=4):
+    dim = np.random.randint(max_dim)
+    simplicies, labels = _get_simplices(dataset, num_classes)
+    simplex = np.random.choice(simplicies)
+    while len(simplex) < dim+1:
+        simplex = np.random.choice(simplicies)
+    simplex = set(np.random.choice(list(simplex), size=dim+1, replace=False).tolist())
+    label = torch.zeros((num_classes,)).to(device)
+    for sim, lab in zip(simplicies, labels):
+        if simplex.issubset(sim):
+            label[lab] = 1
+    return simplex, dim, label
+
 
 @torch.no_grad()
 def get_simplicial_complex(subgraph:dgl.DGLGraph, graph:dgl.DGLGraph, nx_graph:nx.Graph, dataset, num_classes):
@@ -63,6 +80,9 @@ def get_embeddings(simplex_labels, to_remove, num_classes, dim=4):
     Returns:
     embeddings : List of embedding tensor corresponding to each dimension
     '''
+    if type(to_remove)!=frozenset:
+        to_remove = frozenset(to_remove)
+    simplex_labels[to_remove] = torch.zeros(num_classes)
     simplicial_complex = HodgeLaplacians(simplex_labels.keys(), maxdimension=dim)
     embeddings = []
     laplacians = []
@@ -72,7 +92,7 @@ def get_embeddings(simplex_labels, to_remove, num_classes, dim=4):
         H = []
         for z, face in enumerate(simplicial_complex.n_faces(i)):
             face = frozenset(face)
-            H.append(simplex_labels[face]) if face != to_remove else H.append(torch.zeros((num_classes,)))
+            H.append(simplex_labels[face]) if face in simplex_labels.keys() else H.append(torch.zeros((num_classes,)))
             if face == to_remove:
                 idx = z
         try:
@@ -85,4 +105,4 @@ def get_embeddings(simplex_labels, to_remove, num_classes, dim=4):
         except:
             laplacians.append(None)
             boundaries.append(None)
-    return embeddings, laplacians, boundaries, idx, simplex_labels[to_remove].to(device)
+    return embeddings, laplacians, boundaries, idx
