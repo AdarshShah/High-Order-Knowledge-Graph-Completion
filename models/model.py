@@ -59,13 +59,15 @@ class BaseGNN(nn.Module):
 
     def __init__(self, classes, dim=4, device='cuda:0') -> None:
         super(BaseGNN, self).__init__()
-        self.gcn1 = gnn.GraphConv(classes, classes, activation=nn.LeakyReLU(inplace=True), allow_zero_in_degree=True)
-        self.gcn2 = gnn.GraphConv(classes, classes, activation=nn.LeakyReLU(inplace=True), allow_zero_in_degree=True)
-        self.linear = nn.Linear(classes, classes)
+        self.gcn1 = gnn.GraphConv(classes, 2*classes, activation=nn.Tanh(), allow_zero_in_degree=True)
+        self.gcn2 = gnn.GraphConv(2*classes, 4*classes, activation=nn.Tanh(), allow_zero_in_degree=True)
+        self.gcn3 = gnn.GraphConv(4*classes, 4*classes, activation=nn.Tanh(), allow_zero_in_degree=True)
+        self.linear = nn.Linear(4*classes, classes)
 
     def forward(self, graph, feat, order):
         feat = self.gcn1(graph, feat)
-        embeddings = self.gcn2(graph, feat)[: order+1]
+        feat = self.gcn2(graph, feat)
+        embeddings = self.gcn3(graph, feat)[: order+1]
         pooling = torch.mean(embeddings, dim=0)
         return self.linear(pooling)
 
