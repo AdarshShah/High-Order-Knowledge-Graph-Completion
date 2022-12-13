@@ -9,9 +9,17 @@ import scipy.sparse as ssp
 def extract_subgraph(ind, graph, h=1, enclosing_sub_graph=False, max_nodes_per_hop=None, max_node_label_value=None):
     '''
     The main function to perform step 1 (Local Subgraph Extraction)
-    ind : node ids list
-    graph : dgl graph
-    h : predefined hop
+
+    Parameters:
+    -----------
+    ind : List[int], node ids list
+    graph : dgl.Graph, the entire training graph to sample from
+    h : int, number of hops
+    max_nodes_per_hop : int, maximum number of nodes per hop to sample
+
+    Returns:
+    --------
+    subgraph : dgl.Graph, the samples subgraph with original node and edge ids stored in the feature '_ID'.
     '''
     # extract the h-hop enclosing subgraphs around link 'ind'
     Adj = graph.adj(scipy_fmt='coo')

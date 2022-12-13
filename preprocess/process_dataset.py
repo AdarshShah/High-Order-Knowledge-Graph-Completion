@@ -12,9 +12,14 @@ from tqdm import tqdm
 dirname = os.path.dirname(__file__)
 
 @torch.no_grad()
-def _generate_nx_graph(dataset):
+def _generate_nx_graph(dataset:str)->dgl.DGLGraph:
     '''
-    Returns 
+    Parameters:
+    -----------
+    dataset : str, name of the dataset e.g. cat_edge_cooking, cat_edge_DAWN etc.
+    
+    Returns:
+    --------
     nx.Graph with edge attribute 'hyperedge_index' pointing to index of simplices to which it belongs to in 'hyperedges.txt'.
     '''
     print(f'> generating networkx graph from {dataset}/hyperedges.txt')
@@ -39,9 +44,15 @@ def _generate_nx_graph(dataset):
     return graph.to_directed()
 
 @torch.no_grad()
-def get_dgl_graph(dataset, skip_cache=False):
+def get_dgl_graph(dataset:str, skip_cache=False):
     '''
-    Returns 
+    Parameters:
+    -----------
+    dataset : str, name of the dataset e.g. cat_edge_cooking, cat_edge_DAWN etc.
+    skip_cache : bool, to use cached dataset or not. (default=False)
+
+    Returns: 
+    --------
     Directed dgl graph, 
     networkx graph wth edge attributes hyperedge_index = {(u,v):[indices]} 
     '''

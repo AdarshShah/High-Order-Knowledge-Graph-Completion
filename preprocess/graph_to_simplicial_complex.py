@@ -5,14 +5,19 @@ import torch
 import os
 from hodgelaplacians import HodgeLaplacians
 import numpy as np
+from global_parameters import device, timeout
 
 dirname = os.path.dirname(__file__)
-device = 'cuda:0'
 
 @lru_cache()
 def _get_simplices(dataset, num_classes):
     '''
-    Utility function to extract simplices and their labels
+    Utility function to extract simplices and their labels.
+
+    Returns:
+    --------
+    simplices : List[Set], list of simplicies represented by a set.
+    labels: List[int], labels corresponding to each simplex.
     '''
     labels = []
     with open(os.path.join(dirname,f'../datasets/{dataset}/hyperedge-labels.txt'),'r') as label_file:
@@ -24,27 +29,47 @@ def _get_simplices(dataset, num_classes):
             simplices.append(set([ int(node)-1 for node in line.split() ]))
     return simplices, labels
 
-@lru_cache()
 @torch.no_grad()
 def random_sample(dataset, num_classes, max_dim=4):
+    '''
+    Parameters:
+    -----------
+    dataset : str, name of the dataset e.g. cat_edge_cooking, cat_edge_DAWN etc.
+    num_classes : int, number of classes to which a simplex can be classified into
+    max_dim : int, the highest order of simplex allowed.
+
+    Returns:
+    --------
+    simplex: set, a set of vertices
+    dim: int, dimension of the sampled simplex
+    label: tensor, a binary tensor of size (num_classes,)
+    '''
     dim = np.random.randint(max_dim)
     simplicies, labels = _get_simplices(dataset, num_classes)
     simplex = np.random.choice(simplicies)
     while len(simplex) < dim+1:
         simplex = np.random.choice(simplicies)
     simplex = set(np.random.choice(list(simplex), size=dim+1, replace=False).tolist())
-    label = torch.zeros((num_classes,)).to(device)
+    label = torch.zeros((num_classes,))
     for sim, lab in zip(simplicies, labels):
         if simplex.issubset(sim):
             label[lab] = 1
     return simplex, dim, label
 
-
+@timeout(2)
 @torch.no_grad()
 def get_simplicial_complex(subgraph:dgl.DGLGraph, graph:dgl.DGLGraph, nx_graph:nx.Graph, dataset, num_classes):
     '''
     The function generate simplicial complex from subgraph
+
+    Parameters:
+    -----------
+    subgraph : dgl.Graph, the sampled subgraph
+    graph : dgl.Graph, the original training graph
+    nx_graph : nx.Graph, the original training graph with edge attributes 'hyperedge_index'.
+
     Returns:
+    --------
     Simplicial Complex : List of Set
     Labels : List of Int
     '''
@@ -71,6 +96,7 @@ def get_simplicial_complex(subgraph:dgl.DGLGraph, graph:dgl.DGLGraph, nx_graph:n
             simplex_labels[simplex][labels[simplex_index]] = 1
     return simplex_labels
 
+@timeout(1)
 @torch.no_grad()
 def get_embeddings(simplex_labels, to_remove, num_classes, dim=4):
     '''
@@ -96,12 +122,12 @@ def get_embeddings(simplex_labels, to_remove, num_classes, dim=4):
             if face == to_remove:
                 idx = z
         try:
-            embeddings.append(torch.stack(H).float().to(device))
+            embeddings.append(torch.stack(H).float())
         except:
             embeddings.append(None)
         try:
-            laplacians.append(torch.tensor(simplicial_complex.getHodgeLaplacian(i).todense()).float().to(device))
-            boundaries.append(torch.tensor(simplicial_complex.getBoundaryOperator(i).todense()).float().to(device))
+            laplacians.append(torch.tensor(simplicial_complex.getHodgeLaplacian(i).todense()).float())
+            boundaries.append(torch.tensor(simplicial_complex.getBoundaryOperator(i).todense()).float())
         except:
             laplacians.append(None)
             boundaries.append(None)
