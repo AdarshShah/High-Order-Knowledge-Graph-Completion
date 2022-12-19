@@ -56,6 +56,7 @@ def get_dgl_graph(dataset:str, skip_cache=False):
     Directed dgl graph, 
     networkx graph wth edge attributes hyperedge_index = {(u,v):[indices]} 
     '''
+    print(f'> loading {dataset} dataset')
     nx_graph = None
     graph = None
     if os.path.exists(os.path.join(dirname,f'../datasets/{dataset}/cache/nx_graph.pkl')) and not skip_cache:

@@ -96,7 +96,7 @@ def get_simplicial_complex(subgraph:dgl.DGLGraph, graph:dgl.DGLGraph, nx_graph:n
             simplex_labels[simplex][labels[simplex_index]] = 1
     return simplex_labels
 
-@timeout(1)
+@timeout(2) # prevents large sampled subgraphs 
 @torch.no_grad()
 def get_embeddings(simplex_labels, to_remove, num_classes, dim=4):
     '''
