@@ -9,6 +9,8 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+import logging
+
 dirname = os.path.dirname(__file__)
 
 @torch.no_grad()
@@ -22,7 +24,7 @@ def _generate_nx_graph(dataset:str)->dgl.DGLGraph:
     --------
     nx.Graph with edge attribute 'hyperedge_index' pointing to index of simplices to which it belongs to in 'hyperedges.txt'.
     '''
-    print(f'> generating networkx graph from {dataset}/hyperedges.txt')
+    logging.info(f'generating networkx graph from {dataset}/hyperedges.txt')
     graphs = []
     edge2idx = {}
     path = os.path.join(dirname, f'../datasets/{dataset}/hyperedges.txt')
@@ -56,7 +58,7 @@ def get_dgl_graph(dataset:str, skip_cache=False):
     Directed dgl graph, 
     networkx graph wth edge attributes hyperedge_index = {(u,v):[indices]} 
     '''
-    print(f'> loading {dataset} dataset')
+    logging.info(f'loading {dataset} dataset')
     nx_graph = None
     graph = None
     if os.path.exists(os.path.join(dirname,f'../datasets/{dataset}/cache/nx_graph.pkl')) and not skip_cache:
@@ -67,11 +69,11 @@ def get_dgl_graph(dataset:str, skip_cache=False):
         nx_graph = _generate_nx_graph(dataset)
         pickle.dump(nx_graph,open(os.path.join(dirname,f'../datasets/{dataset}/cache/nx_graph.pkl'),'wb'))
     else:
-        print('> loading nx_graph from cache')
+        logging.info('loading nx_graph from cache')
     if graph is None:
-        print('> generating dgl undirected graph from networkx graph')
+        logging.info('generating dgl undirected graph from networkx graph')
         graph = dgl.from_networkx(nx_graph)
         pickle.dump(graph,open(os.path.join(dirname,f'../datasets/{dataset}/cache/dgl_graph.pkl'),'wb'))
     else:
-        print('> loading dgl_graph from cache')
+        logging.info('loading dgl_graph from cache')
     return graph, nx_graph

@@ -5,12 +5,12 @@ import torch
 import os
 from hodgelaplacians import HodgeLaplacians
 import numpy as np
-from global_parameters import device, timeout
+from global_parameters import timeout
 
 dirname = os.path.dirname(__file__)
 
 @lru_cache()
-def _get_simplices(dataset, num_classes):
+def _get_simplices(dataset, num_classes, negative=False):
     '''
     Utility function to extract simplices and their labels.
 
@@ -19,18 +19,20 @@ def _get_simplices(dataset, num_classes):
     simplices : List[Set], list of simplicies represented by a set.
     labels: List[int], labels corresponding to each simplex.
     '''
-    labels = []
-    with open(os.path.join(dirname,f'../datasets/{dataset}/hyperedge-labels.txt'),'r') as label_file:
-        for line in label_file:
-            labels.append(min(int(line)-1, num_classes-1))
     simplices = []
     with open(os.path.join(dirname, f'../datasets/{dataset}/hyperedges.txt'),'r') as hyperedges_file:
         for line in hyperedges_file:
             simplices.append(set([ int(node)-1 for node in line.split() ]))
+    labels = []
+    with open(os.path.join(dirname,f'../datasets/{dataset}/hyperedge-labels.txt'),'r') as label_file:
+        for line in label_file:
+            labels.append(min(int(line)-1, num_classes-1))
+    if negative:
+        np.random.shuffle(labels)
     return simplices, labels
 
 @torch.no_grad()
-def random_sample(dataset, num_classes, max_dim=4):
+def random_sample(dataset, num_classes, positive=True, max_dim=4, dim=None):
     '''
     Parameters:
     -----------
@@ -42,23 +44,30 @@ def random_sample(dataset, num_classes, max_dim=4):
     --------
     simplex: set, a set of vertices
     dim: int, dimension of the sampled simplex
-    label: tensor, a binary tensor of size (num_classes,)
+    pos_label: tensor, a binary tensor of size (num_classes,)
+    neg_label: tensor, a binary tensor of size (num_classes,)
     '''
-    dim = np.random.randint(max_dim)
-    simplicies, labels = _get_simplices(dataset, num_classes)
+    dim = dim or np.random.randint(max_dim)
+    simplicies, pos_labels = _get_simplices(dataset, num_classes)
+    _, neg_labels = _get_simplices(dataset, num_classes, negative=True)
     simplex = np.random.choice(simplicies)
+
     while len(simplex) < dim+1:
         simplex = np.random.choice(simplicies)
     simplex = set(np.random.choice(list(simplex), size=dim+1, replace=False).tolist())
-    label = torch.zeros((num_classes,))
-    for sim, lab in zip(simplicies, labels):
+
+    pos_label = torch.zeros((num_classes,))
+    neg_label = torch.zeros((num_classes,))
+    for sim, pos_lab, neg_lab in zip(simplicies, pos_labels, neg_labels):
         if simplex.issubset(sim):
-            label[lab] = 1
-    return simplex, dim, label
+            pos_label[pos_lab] = 1
+            neg_label[neg_lab] = 1
+
+    return simplex, dim, pos_label, neg_label
 
 @timeout(2)
 @torch.no_grad()
-def get_simplicial_complex(subgraph:dgl.DGLGraph, graph:dgl.DGLGraph, nx_graph:nx.Graph, dataset, num_classes):
+def get_simplicial_complex(subgraph:dgl.DGLGraph, graph:dgl.DGLGraph, nx_graph:nx.Graph, dataset, num_classes, positive=True):
     '''
     The function generate simplicial complex from subgraph
 
@@ -73,7 +82,10 @@ def get_simplicial_complex(subgraph:dgl.DGLGraph, graph:dgl.DGLGraph, nx_graph:n
     Simplicial Complex : List of Set
     Labels : List of Int
     '''
-    simplices, labels = _get_simplices(dataset, num_classes)
+    if positive:
+        simplices, labels = _get_simplices(dataset, num_classes)
+    else:
+        simplices, labels = _get_simplices(dataset, num_classes, negative=True)
     edges = torch.stack(graph.find_edges(subgraph.edata['_ID'])).permute(1,0).numpy()
     nodes = set(subgraph.ndata['_ID'].numpy())
     simplex_labels = {}

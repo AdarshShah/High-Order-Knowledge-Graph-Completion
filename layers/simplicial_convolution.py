@@ -8,10 +8,11 @@ class SimplicialConvolution(nn.Module):
 
     def __init__(self, in_relations, out_relations) -> None:
         super(SimplicialConvolution, self).__init__()
+        self.W_o = nn.parameter.Parameter(torch.rand((in_relations, out_relations)))
         self.W_L = nn.parameter.Parameter(torch.rand((in_relations, out_relations)))
         self.W_low = nn.parameter.Parameter(torch.rand((in_relations, out_relations)))
         self.W_high = nn.parameter.Parameter(torch.rand((in_relations, out_relations)))
-        self.bias = nn.parameter.Parameter(torch.rand((out_relations,)))
+        self.lin = nn.Linear(4*in_relations, out_relations)
 
     def forward(self, L:torch.Tensor, H:torch.Tensor, B_low:torch.Tensor, H_low:torch.Tensor, B_high:torch.Tensor, H_high:torch.Tensor):
         '''
@@ -23,10 +24,21 @@ class SimplicialConvolution(nn.Module):
         B_high : Co-boundary Matrix
         H_high : Higher order Simplicial Embedding Matrix
         '''
-        result = torch.matmul(torch.matmul(L,H), self.W_L) + self.bias.repeat(L.shape[0], 1)
-        result += torch.matmul(torch.matmul(B_low.transpose(0,1),H_low),self.W_low) if B_low is not None else 0
-        result += torch.matmul(torch.matmul(B_high,H_high),self.W_high) if B_high is not None else 0
-        return result
+        H1 = H
+        H2 = torch.matmul(L,H)
+        H3 = torch.matmul(B_low.transpose(0,1),H_low) if B_low is not None else torch.zeros_like(H1)
+        H4 = torch.matmul(B_high,H_high) if B_high is not None else torch.zeros_like(H1)
+        H5 = torch.cat((H1, H2, H3, H4), dim=1)
+        return self.lin(H5)
+
+        # f = 2
+        # if B_low is not None:
+        #     result += torch.matmul(torch.matmul(B_low.transpose(0,1),H_low),self.W_low)
+        #     f += 1
+        # if B_high is not None:
+        #     result += torch.matmul(torch.matmul(B_high,H_high),self.W_high)
+        #     f += 1
+        # return result
 
 #Tested
 #Describe this in overleaf later
@@ -61,24 +73,26 @@ class SimplicialAttentionLayer2(nn.Module):
         # self.attn_l = nn.MultiheadAttention(in_relations, 1)
         # self.attn_h = nn.MultiheadAttention(in_relations, 1)
         self.attn = SimplicialAttentionLayer(in_relations)
+        self.lin = nn.Linear(3*in_relations, in_relations)
 
     def forward(self, L:torch.Tensor, H:torch.Tensor, B_low:torch.Tensor, H_low:torch.Tensor, B_high:torch.Tensor, H_high:torch.Tensor):
         
         L = (L!=0)
-        H1= self.attn(H, H, H, attn_mask = L)
-        f = 1
+        H1 = self.attn(H, H, H, attn_mask = L)
         if  H_low is not None:
             B_low = (B_low!=0)
             H2 = self.attn(H, H_low, H_low, attn_mask = B_low.transpose(0,1))
-            H1 = H1 + H2
-            f +=1
-        
+        else:
+            H2 = torch.zeros_like(H1)
+
         if  H_high is not None:
             B_high = (B_high!=0)
             H3 = self.attn(H, H_high, H_high, attn_mask = B_high)
-            H1 = H1 + H3
-            f +=1
-        return H1/f
+        else:
+            H3 = torch.zeros_like(H1)
+        H4 = torch.concat((H1,H2,H3), dim=1)
+
+        return F.tanh(self.lin(H4))
 
 
 
