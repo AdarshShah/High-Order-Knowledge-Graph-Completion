@@ -1,6 +1,6 @@
 import os
 import logging
-from models.model import SimplicialModel1, BaseGNN
+from models.model import SimplicialModel2, BaseGNN
 from torch.utils.tensorboard import SummaryWriter
 import torch
 
@@ -28,7 +28,7 @@ def initialize_models(params, mode='train'):
     model_dir = os.path.join(exps_dir, 'models')
 
     writer = SummaryWriter(f'/home/adarsh/H-KGC/datasets/{params.dataset}/logs')
-    cm = SimplicialModel1(classes=params.num_classes, dim=params.max_dim, device=params.device).to(params.device)
+    cm = SimplicialModel2(classes=params.num_classes, dim=params.max_dim, device=params.device).to(params.device)
     baseGnn = BaseGNN(classes=params.num_classes, dim=params.max_dim, device=params.device).to(params.device)
 
     if mode=='train':

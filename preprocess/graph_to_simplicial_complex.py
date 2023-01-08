@@ -32,7 +32,7 @@ def _get_simplices(dataset, num_classes, negative=False):
     return simplices, labels
 
 @torch.no_grad()
-def random_sample(dataset, num_classes, positive=True, max_dim=4, dim=None):
+def random_sample(dataset, num_classes, positive=True, max_dim=4, dim=None, visited=None):
     '''
     Parameters:
     -----------
@@ -47,11 +47,14 @@ def random_sample(dataset, num_classes, positive=True, max_dim=4, dim=None):
     pos_label: tensor, a binary tensor of size (num_classes,)
     neg_label: tensor, a binary tensor of size (num_classes,)
     '''
+    # if visited is None:
+    #     visited = set()
     dim = dim or np.random.randint(max_dim)
     simplicies, pos_labels = _get_simplices(dataset, num_classes)
     _, neg_labels = _get_simplices(dataset, num_classes, negative=True)
     simplex = np.random.choice(simplicies)
 
+    # while frozenset(simplex) in visited:
     while len(simplex) < dim+1:
         simplex = np.random.choice(simplicies)
     simplex = set(np.random.choice(list(simplex), size=dim+1, replace=False).tolist())
@@ -67,7 +70,7 @@ def random_sample(dataset, num_classes, positive=True, max_dim=4, dim=None):
 
 @timeout(2)
 @torch.no_grad()
-def get_simplicial_complex(subgraph:dgl.DGLGraph, graph:dgl.DGLGraph, nx_graph:nx.Graph, dataset, num_classes, positive=True):
+def get_simplicial_complex(subgraph:dgl.DGLGraph, graph:dgl.DGLGraph, nx_graph:nx.Graph, to_remove, dataset, num_classes, positive=True):
     '''
     The function generate simplicial complex from subgraph
 
@@ -102,10 +105,11 @@ def get_simplicial_complex(subgraph:dgl.DGLGraph, graph:dgl.DGLGraph, nx_graph:n
                     if face not in simplex_labels.keys():
                         simplex_labels[face] = torch.zeros(num_classes)            
             hl = HodgeLaplacians([simplex])
-            for face in hl.face_set:
-                face = frozenset(face)
-                simplex_labels[face][labels[simplex_index]] = 1
-            simplex_labels[simplex][labels[simplex_index]] = 1
+            if simplex!=to_remove:
+                for face in hl.face_set:
+                    face = frozenset(face)
+                    simplex_labels[face][labels[simplex_index]] = 1
+                simplex_labels[simplex][labels[simplex_index]] = 1
     return simplex_labels
 
 @timeout(2) # prevents large sampled subgraphs 

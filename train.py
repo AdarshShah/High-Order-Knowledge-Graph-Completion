@@ -1,6 +1,7 @@
 import argparse
 import logging
 import warnings
+import os
 
 import torch
 from tqdm import tqdm
@@ -28,9 +29,7 @@ def train(params):
 
     optim1 = torch.optim.Adam(cm.parameters())
     optim2 = torch.optim.Adam(baseGnn.parameters())
-
-    dataloader = DataLoader(dataset, batch_size=1,
-                            num_workers=16, collate_fn=custom_collate)
+    dataloader = DataLoader(dataset, batch_size=1, num_workers=16, collate_fn=custom_collate)
     with tqdm(dataloader) as tepoch:
         for pos_embeddings, neg_embeddings, laplacians, boundaries, order, idx, label, subgraph in tepoch:
             label, subgraph = label.to(
@@ -44,23 +43,27 @@ def train(params):
             boundaries = [x.to(params.device)
                           if x is not None else None for x in boundaries]
 
-            pos_pred = cm(pos_embeddings, laplacians, boundaries, order,
-                          idx, torch.ones_like(pos_embeddings[0][0])).squeeze()
-            neg_pred = cm(neg_embeddings, laplacians, boundaries, order,
-                          idx, torch.ones_like(pos_embeddings[0][0])).squeeze()
-            loss1 += torch.nn.functional.binary_cross_entropy_with_logits(
-                pos_pred, label) + torch.nn.functional.binary_cross_entropy_with_logits(neg_pred, torch.zeros_like(neg_pred))
-            # loss1 += torch.nn.functional.margin_ranking_loss(pos_pred, neg_pred, torch.ones_like(pos_pred), margin=10, reduction='mean')
+            try:
+                pos_pred = cm(pos_embeddings, laplacians, boundaries, order,
+                            idx, torch.ones_like(pos_embeddings[0][0])).squeeze()
+                neg_pred = cm(neg_embeddings, laplacians, boundaries, order,
+                            idx, torch.ones_like(pos_embeddings[0][0])).squeeze()
+                loss1 += torch.nn.functional.binary_cross_entropy_with_logits(
+                    pos_pred, label) + torch.nn.functional.binary_cross_entropy_with_logits(neg_pred, torch.zeros_like(neg_pred))
+                # loss1 += torch.nn.functional.margin_ranking_loss(pos_pred, neg_pred, torch.ones_like(pos_pred), margin=10, reduction='mean')
 
-            subgraph = subgraph.to(params.device)
-            pos_pred = baseGnn(subgraph, pos_embeddings[0], order, torch.ones_like(
-                pos_embeddings[0][0])).squeeze()
-            neg_pred = baseGnn(subgraph, neg_embeddings[0], order, torch.ones_like(
-                pos_embeddings[0][0])).squeeze()
-            loss2 += torch.nn.functional.binary_cross_entropy_with_logits(
-                pos_pred, label) + torch.nn.functional.binary_cross_entropy_with_logits(neg_pred, torch.zeros_like(neg_pred))
-            # loss2 += torch.nn.functional.margin_ranking_loss(pos_pred, neg_pred, torch.ones_like(pos_pred), margin=10, reduction='mean')
-            ep += 1
+                subgraph = subgraph.to(params.device)
+                pos_pred = baseGnn(subgraph, pos_embeddings[0], order, torch.ones_like(
+                    pos_embeddings[0][0])).squeeze()
+                neg_pred = baseGnn(subgraph, neg_embeddings[0], order, torch.ones_like(
+                    pos_embeddings[0][0])).squeeze()
+                loss2 += torch.nn.functional.binary_cross_entropy_with_logits(
+                    pos_pred, label) + torch.nn.functional.binary_cross_entropy_with_logits(neg_pred, torch.zeros_like(neg_pred))
+                # loss2 += torch.nn.functional.margin_ranking_loss(pos_pred, neg_pred, torch.ones_like(pos_pred), margin=10, reduction='mean')
+                ep += 1
+            except:
+                pass
+            
 
             if ep % params.batch_size == 0:
                 loss1 = loss1 / params.batch_size
@@ -78,6 +81,11 @@ def train(params):
                 loss2 = 0
                 gs += 1
             torch.cuda.empty_cache()
+    
+    # import pickle
+    # main_dir = os.path.relpath(os.path.dirname(os.path.abspath(__file__)))
+    # filepath = os.path.join(main_dir, 'datasets', f'{params.dataset}', 'visited.pkl')
+    # pickle.dump(dataset.visited, open(filepath, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
 
     save_models(params, cm, baseGnn)
 

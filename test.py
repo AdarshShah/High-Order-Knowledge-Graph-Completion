@@ -34,26 +34,35 @@ def test(params):
                 neg_embeddings = [ x.to(params.device) if x is not None else None for x in neg_embeddings]
                 laplacians = [ x.to(params.device) if x is not None else None for x in laplacians]
                 boundaries = [ x.to(params.device) if x is not None else None for x in boundaries]
-                if order > 0: # makes no sense to perform node classification since node embedding will be 0.
-                    pred0 = (torch.sum(pos_embeddings[0][:order+1], dim=0)!=0).long().squeeze()
-                    pred1 = (torch.prod(pos_embeddings[0][:order+1], dim=0)!=0).long().squeeze()
-                    H0.append((pred0==label).long())
-                    H1.append((pred1==label).long())
-                    labels0.append(label)
-                pred2_pos = baseGnn(subgraph, pos_embeddings[0], order, label)
-                pred2_neg = baseGnn(subgraph, neg_embeddings[0], order, label)
-                pred3_pos = cm(pos_embeddings, laplacians, boundaries, order, idx, label)
-                pred3_neg = cm(neg_embeddings, laplacians, boundaries, order, idx, label)
-                # H1.append((torch.round(torch.sigmoid(pred1))==label).long())
-                # H2.append((torch.round(torch.sigmoid(pred2))==label).long())
-                H2.append(pred2_pos)
-                H2.append(pred2_neg)
-                H3.append(pred3_pos)
-                H3.append(pred3_neg)
-                labels1.append(torch.ones_like(pred2_pos))
-                labels1.append(torch.zeros_like(pred2_neg))
-                torch.cuda.empty_cache()
+
+                try:
+                    if order > 0: # makes no sense to perform node classification since node embedding will be 0.
+                        pred0 = (torch.sum(pos_embeddings[0][:order+1], dim=0)!=0).long().squeeze()
+                        pred1 = (torch.prod(pos_embeddings[0][:order+1], dim=0)!=0).long().squeeze()
+                        H0.append((pred0==label).long())
+                        H1.append((pred1==label).long())
+                        labels0.append(label)
+                    pred2_pos = baseGnn(subgraph, pos_embeddings[0], order, label)
+                    pred2_neg = baseGnn(subgraph, neg_embeddings[0], order, label)
+                    pred3_pos = cm(pos_embeddings, laplacians, boundaries, order, idx, label)
+                    pred3_neg = cm(neg_embeddings, laplacians, boundaries, order, idx, label)
+                    # H1.append((torch.round(torch.sigmoid(pred1))==label).long())
+                    # H2.append((torch.round(torch.sigmoid(pred2))==label).long())
+                    H2.append(pred2_pos)
+                    H2.append(pred2_neg)
+                    H3.append(pred3_pos)
+                    H3.append(pred3_neg)
+                    labels1.append(torch.ones_like(pred2_pos))
+                    labels1.append(torch.zeros_like(pred2_neg))
+                    torch.cuda.empty_cache()
+                except:
+                    pass
     H0, H1, H2, H3, labels0, labels1 = torch.stack(H0), torch.stack(H1), torch.cat(H2), torch.cat(H3), torch.stack(labels0), torch.cat(labels1)
+
+    mask = (labels0.sum(dim=0)!=0)
+    labels0 = labels0[:,mask]
+    H0 = H0[:,mask]
+    H1 = H1[:,mask]
 
     A1 = roc_auc_score(labels0.cpu().numpy(), H0.cpu().numpy(), average='weighted')
     B1 = roc_auc_score(labels0.cpu().numpy(), H1.cpu().numpy(),  average='weighted')
