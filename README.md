@@ -1,4 +1,4 @@
-# Inductive Higher Order Knowledge Hypergraph Completion
+# Inductive Knowledge Hypergraph Completion
 
 #### Datasets
 
