@@ -52,7 +52,7 @@ def train(params):
                 loss3 += torch.nn.functional.binary_cross_entropy_with_logits(pos_pred, label) + torch.nn.functional.binary_cross_entropy_with_logits(neg_pred, torch.zeros_like(neg_pred))
                 ep += 1
             except:
-                pass            
+                pass  
 
             if ep % params.batch_size == 0:
                 loss1 = loss1 / params.batch_size

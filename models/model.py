@@ -9,12 +9,20 @@ class SimplicialAttentionModel(nn.Module):
     def __init__(self, classes, dim=4, device='cuda:0') -> None:
         super(SimplicialAttentionModel, self).__init__()
         self.dim = dim
-
-        self.attn1 = SimplicialAttentionLayer(classes, 2*classes)
-        self.attn2 = SimplicialAttentionLayer(2*classes, 4*classes)
-        self.attn3 = SimplicialAttentionLayer(4*classes, 8*classes)
-        self.attn4 = SimplicialAttentionLayer(8*classes, 16*classes)
-        self.rel_lin = nn.Linear(16*classes, classes)
+        self.lin_layer = nn.Linear(classes, 2 * classes)
+        self.attn_layers = nn.ModuleList()
+        for i in range(dim):
+            self.attn_layers.append(SimplicialAttentionLayer(2 * classes, 2 * classes))
+        self.rel_lin = nn.Linear(4 * classes, classes)
+    
+    def lin(self, op, embeddings):
+        embeddings1 = []
+        for i in range(self.dim):
+            if embeddings[i] is not None:
+                embeddings1.append(op(embeddings[i]))
+            else:
+                embeddings1.append(None)
+        return embeddings1
 
     def attn(self, op, embeddings, laplacians, boundaries):
         embeddings1 = []
@@ -38,25 +46,25 @@ class SimplicialAttentionModel(nn.Module):
         return embeddings1, A_w
 
     def forward(self, embeddings, laplacians, boundaries, order, idx, rel):
-        embeddings1, A_w_1 = self.attn(self.attn1, embeddings, laplacians, boundaries)
-        embeddings2, A_w_2 = self.attn(self.attn2, embeddings1, laplacians, boundaries)
-        embeddings3, A_w_3 = self.attn(self.attn3, embeddings2, laplacians, boundaries)
-        embeddings4, A_w_4 = self.attn(self.attn4, embeddings3, laplacians, boundaries)
+        embeddings = self.lin(self.lin_layer, embeddings)
+        for i in range(self.dim):
+            embeddings, A_w_1 = self.attn(self.attn_layers[i], embeddings, laplacians, boundaries)
         # to process A_w later
-        return self.rel_lin(embeddings4[order][idx]).squeeze()[rel.nonzero()]
+        pooling = torch.zeros_like(embeddings[order][idx])
+        for em in embeddings:
+            if em is not None:
+                pooling += torch.sum(em, dim=0)
+        return self.rel_lin(torch.cat((pooling, embeddings[order][idx]))).squeeze()[rel.nonzero()]
 
 class SimplicialConvolutionModel(nn.Module):
 
     def __init__(self, classes, dim=4, device='cuda:0') -> None:
         super(SimplicialConvolutionModel, self).__init__()
         self.dim = dim
-
-        self.conv1 = SimplicialConvolution(classes, 2*classes)
-        self.conv2 = SimplicialConvolution(2*classes, 4*classes)
-        self.conv3 = SimplicialConvolution(4*classes, 8*classes)
-        self.conv4 = SimplicialConvolution(8*classes, 16*classes)
-        self.rel_lin = nn.Linear(16*classes, classes)
-
+        self.layers = nn.ModuleList()
+        for i in range(1, dim+1):
+            self.layers.append(SimplicialConvolution(i * classes, (i+1) * classes))
+        self.rel_lin = nn.Linear((1+dim) * classes, classes)
         self.device = device
 
     def conv(self, op, embeddings, laplacians, boundaries):
@@ -73,28 +81,26 @@ class SimplicialConvolutionModel(nn.Module):
         return embeddings1
 
     def forward(self, embeddings, laplacians, boundaries, order, idx, rel):
-        embeddings1 = self.conv(self.conv1, embeddings, laplacians, boundaries)
-        embeddings2 = self.conv(self.conv2, embeddings1, laplacians, boundaries)
-        embeddings3 = self.conv(self.conv3, embeddings2, laplacians, boundaries)
-        embeddings4 = self.conv(self.conv4, embeddings3, laplacians, boundaries)
-        return self.rel_lin(embeddings4[order][idx]).squeeze()[rel.nonzero()]
+        for i in range(self.dim):
+            embeddings = self.conv(self.layers[i], embeddings, laplacians, boundaries)
+        return self.rel_lin(embeddings[order][idx]).squeeze()[rel.nonzero()]
 
 class GATModel(nn.Module):
 
     def __init__(self, classes, dim=4, device='cuda:0') -> None:
         super(GATModel, self).__init__()
-        nodes = 2*classes
-        self.gcn1 = gnn.GATConv(classes, 2*classes, num_heads=1, activation=nn.Tanh(), allow_zero_in_degree=True)
-        self.gcn2 = gnn.GATConv(2*classes, 4*classes, num_heads=1, activation=nn.Tanh(), allow_zero_in_degree=True)
-        self.gcn3 = gnn.GATConv(4*classes, 8*classes, num_heads=1, activation=nn.Tanh(), allow_zero_in_degree=True)
-        self.gcn4 = gnn.GATConv(8*classes, 16*classes, num_heads=1, activation=nn.Tanh(), allow_zero_in_degree=True)
-        self.rel_lin = nn.Linear(16*classes, classes)
+        self.dim = dim
+        self.lin_layer = nn.Linear(classes, 2 * classes)
+        self.attn_layers = nn.ModuleList()
+        for i in range(dim):
+            self.attn_layers.append(gnn.GATConv(2 * classes, 2 * classes, num_heads=1, activation=nn.LeakyReLU(), allow_zero_in_degree=True))
+        self.rel_lin = nn.Linear(2 * classes, classes)        
         self.device = device
 
     def forward(self, graph, feat, order, rel):
-        feat = self.gcn1(graph, feat)
-        feat = self.gcn2(graph, feat)
-        feat = self.gcn3(graph, feat)
-        embeddings = self.gcn4(graph, feat).squeeze()[: order+1]
+        feat = self.lin_layer(feat)
+        for i in range(self.dim):
+            feat = self.attn_layers[i](graph, feat)
+        embeddings = feat.squeeze()[: order+1]
         pooling = torch.mean(embeddings, dim=0)
         return self.rel_lin(pooling).squeeze()[rel.nonzero()]
