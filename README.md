@@ -51,6 +51,6 @@ The above will:
 * save log file as `./datasets/cat_edge_cooking/log_test.txt` with the results.
 * store results in `./datasets/cat_edge_cooking/default_experiment_scores.csv`
 
-#### Other Baselines
+#### Experiments
 
-The baselines for GRAIL is present in the ./`grail/datasets/` folder within the log files.
+The scripts used for experiments are available in `./scripts/*`.
