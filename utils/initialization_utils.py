@@ -8,7 +8,12 @@ def initialize_experiment(params, mode='train'):
     
     params.main_dir = os.path.join(os.path.relpath(os.path.dirname(os.path.abspath(__file__))), '..')
     exps_dir = os.path.join(params.main_dir, 'datasets', f'{params.dataset}')
-    
+    cache_dir = os.path.join(exps_dir, 'cache')
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir)
+    logs_dir = os.path.join(exps_dir, 'logs')
+    if not os.path.exists(logs_dir):
+        os.makedirs(logs_dir)
     if mode=='train':
         file_handler = logging.FileHandler(os.path.join(exps_dir, f"log_train.txt"))
     else:
@@ -32,7 +37,7 @@ def initialize_models(params, mode='train'):
     exps_dir = os.path.join(params.main_dir, 'datasets', f'{params.dataset}')
     model_dir = os.path.join(exps_dir, 'models')
 
-    writer = SummaryWriter(f'/home/adarsh/H-KGC/datasets/{params.dataset}/logs')
+    writer = SummaryWriter(os.path.join(params.main_dir, exps_dir, 'logs'))
     cm1 = SimplicialConvolutionModel(classes=params.num_classes, dim=params.max_dim, device=params.device).to(params.device)
     cm2 = SimplicialAttentionModel(classes=params.num_classes, dim=params.max_dim, device=params.device).to(params.device)
     baseGnn = GATModel(classes=params.num_classes, dim=params.max_dim, device=params.device).to(params.device)
